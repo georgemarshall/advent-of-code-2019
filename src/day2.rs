@@ -1,5 +1,3 @@
-use std::io::{self, BufRead};
-
 struct IntcodeMachine {
     mem: Vec<u32>,
     halted: bool,
@@ -58,52 +56,39 @@ impl IntcodeMachine {
     }
 }
 
-fn main() {
-    println!("Reading input from stdin...\n");
-    // TODO: add support for passing this value in.
-    let target_output = 19_690_720;
+#[aoc_generator(day2)]
+fn program(input: &str) -> Vec<u32> {
+    input.split(',').filter_map(|s| s.parse().ok()).collect()
+}
 
-    let stdin = io::stdin();
-    let program: Vec<u32> = stdin
-        .lock()
-        .lines()
-        .filter_map(|s| s.ok())
-        .map(|s| s.split(',').filter_map(|v| v.parse().ok()).collect())
-        .next()
-        .unwrap_or_default();
+#[aoc(day2, part1)]
+fn restored_program(program: &[u32]) -> u32 {
+    let (noun, verb) = (12, 2);
 
-    let restored_program = {
-        let (noun, verb) = (12, 2);
-        let mut im = IntcodeMachine::new(program.clone());
-        im.store(1, noun);
-        im.store(2, verb);
-        im.run();
-        im.load(0)
-    };
+    let mut im = IntcodeMachine::new(program.to_owned());
+    im.store(1, noun);
+    im.store(2, verb);
+    im.run();
+    im.load(0) as u32
+}
 
-    let fuzzed_input: (u32, u32) = {
-        let mut r = (0, 0);
-        'outer: for noun in 0..=99 {
-            for verb in 0..=99 {
-                let mut im = IntcodeMachine::new(program.clone());
-                im.store(1, noun);
-                im.store(2, verb);
-                im.run();
-                if im.load(0) == target_output {
-                    r = (noun, verb);
-                    break 'outer;
-                }
+#[aoc(day2, part2)]
+fn fuzzed_program(program: &[u32]) -> u32 {
+    let target = 19_690_720;
+
+    for noun in 0..=99 {
+        for verb in 0..=99 {
+            let mut im = IntcodeMachine::new(program.to_owned());
+            im.store(1, noun);
+            im.store(2, verb);
+            im.run();
+
+            if im.load(0) == target {
+                return 100 * noun + verb;
             }
         }
-        r
-    };
-
-    println!("===== Results =====");
-    println!("Restored program memory: {}", restored_program);
-    println!(
-        "Fuzzed program memory: noun = {0}, verb = {1}",
-        fuzzed_input.0, fuzzed_input.1
-    );
+    }
+    0
 }
 
 #[cfg(test)]

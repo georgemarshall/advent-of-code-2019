@@ -1,5 +1,3 @@
-use std::io::{self, BufRead};
-
 fn fuel_for_mass(mass: i32) -> i32 {
     mass / 3 - 2
 }
@@ -14,25 +12,22 @@ fn cumulative_fuel_for_mass(mass: i32) -> i32 {
     }
 }
 
-fn main() {
-    println!("Reading input from stdin...\n");
-    let stdin = io::stdin();
-    let modules: Vec<i32> = stdin
-        .lock()
-        .lines()
-        .filter_map(|s| s.ok())
-        .filter_map(|s| s.parse().ok())
-        .collect();
+#[aoc_generator(day1)]
+fn modules(input: &str) -> Vec<i32> {
+    input.lines().filter_map(|s| s.parse().ok()).collect()
+}
 
-    let total_fuel: i32 = modules.iter().map(|&mass| fuel_for_mass(mass)).sum();
-    let total_cumulative_fuel: i32 = modules
+#[aoc(day1, part1)]
+fn total_fuel(modules: &[i32]) -> i32 {
+    modules.iter().map(|&mass| fuel_for_mass(mass)).sum()
+}
+
+#[aoc(day1, part2)]
+fn total_cumulative_fuel(modules: &[i32]) -> i32 {
+    modules
         .iter()
         .map(|&mass| cumulative_fuel_for_mass(mass))
-        .sum();
-
-    println!("===== Results =====");
-    println!("Fuel for mass: {}", total_fuel);
-    println!("Cumulative fuel for mass: {}", total_cumulative_fuel);
+        .sum()
 }
 
 #[cfg(test)]
