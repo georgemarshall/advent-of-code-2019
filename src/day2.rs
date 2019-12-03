@@ -74,7 +74,8 @@ fn restored_program(program: &[u32]) -> u32 {
 
 #[aoc(day2, part2)]
 fn fuzzed_program(program: &[u32]) -> u32 {
-    let target = 19_690_720;
+    #[allow(clippy::inconsistent_digit_grouping)]
+    let target = 1969_07_20;
 
     for noun in 0..=99 {
         for verb in 0..=99 {
