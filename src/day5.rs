@@ -17,15 +17,15 @@ impl<'a> Instruction<'a> {
     fn execute(&mut self) {
         match self.opcode {
             1 => {
-                let (r1, r2, r3) = (self.next(), self.next(), self.machine.next());
+                let (r1, r2, r3) = (self.next(), self.next(), self.next_ptr());
                 self.add(r1, r2, r3)
             }
             2 => {
-                let (r1, r2, r3) = (self.next(), self.next(), self.machine.next());
+                let (r1, r2, r3) = (self.next(), self.next(), self.next_ptr());
                 self.multiply(r1, r2, r3)
             }
             3 => {
-                let r1 = self.machine.next();
+                let r1 = self.next_ptr();
                 self.input(r1)
             }
             4 => {
@@ -41,11 +41,11 @@ impl<'a> Instruction<'a> {
                 self.jump_if_false(r1, r2)
             }
             7 => {
-                let (r1, r2, r3) = (self.next(), self.next(), self.machine.next());
+                let (r1, r2, r3) = (self.next(), self.next(), self.next_ptr());
                 self.less_than(r1, r2, r3)
             }
             8 => {
-                let (r1, r2, r3) = (self.next(), self.next(), self.machine.next());
+                let (r1, r2, r3) = (self.next(), self.next(), self.next_ptr());
                 self.equals(r1, r2, r3)
             }
             99 => self.exit(),
@@ -57,12 +57,16 @@ impl<'a> Instruction<'a> {
         let mode = self.mode % 10;
         self.mode /= 10;
 
-        let v = self.machine.next();
+        let v = self.next_ptr();
         match mode {
             0 => self.machine.load(v),
             1 => v as i32,
             _ => unreachable!(),
         }
+    }
+
+    fn next_ptr(&mut self) -> usize {
+        self.machine.next()
     }
 
     /// Opcode: 1
