@@ -3,8 +3,8 @@ enum Mode {
     Immediate,
 }
 
-impl From<usize> for Mode {
-    fn from(mode: usize) -> Self {
+impl From<i32> for Mode {
+    fn from(mode: i32) -> Self {
         match mode {
             0 => Mode::Position,
             1 => Mode::Immediate,
@@ -14,14 +14,14 @@ impl From<usize> for Mode {
 }
 
 enum Instruction {
-    Add(i32, i32, usize),
-    Multiply(i32, i32, usize),
-    Input(usize),
+    Add(i32, i32, i32),
+    Multiply(i32, i32, i32),
+    Input(i32),
     Output(i32),
     JumpIfTrue(i32, i32),
     JumpIfFalse(i32, i32),
-    LessThan(i32, i32, usize),
-    Equals(i32, i32, usize),
+    LessThan(i32, i32, i32),
+    Equals(i32, i32, i32),
     Exit,
 }
 
@@ -33,13 +33,13 @@ impl From<&mut IntcodeMachine> for Instruction {
 
         let mut mode = instruction / 100;
         let mut mode_next = || {
-            let ptr = machine.next();
+            let v = machine.next();
             let m = mode % 10;
             mode /= 10;
 
             match m.into() {
-                Mode::Position => machine.load(ptr),
-                Mode::Immediate => ptr as i32,
+                Mode::Position => machine.load(v as usize),
+                Mode::Immediate => v,
             }
         };
 
@@ -84,10 +84,10 @@ impl IntcodeMachine {
         }
     }
 
-    fn next(&mut self) -> usize {
-        let ptr = self.load(self.pc);
+    fn next(&mut self) -> i32 {
+        let v = self.load(self.pc);
         self.pc += 1;
-        ptr as usize
+        v
     }
 
     pub fn load(&self, address: usize) -> i32 {
@@ -101,14 +101,14 @@ impl IntcodeMachine {
     fn tick(&mut self) {
         match self.into() {
             Instruction::Add(r1, r2, r3) => {
-                self.store(r3, r1 + r2);
+                self.store(r3 as usize, r1 + r2);
             }
             Instruction::Multiply(r1, r2, r3) => {
-                self.store(r3, r1 * r2);
+                self.store(r3 as usize, r1 * r2);
             }
             Instruction::Input(r1) => {
                 let v = self.input.pop().expect("Input expected");
-                self.store(r1, v);
+                self.store(r1 as usize, v);
             }
             Instruction::Output(r1) => {
                 self.output.push(r1);
@@ -124,10 +124,10 @@ impl IntcodeMachine {
                 }
             }
             Instruction::LessThan(r1, r2, r3) => {
-                self.store(r3, if r1 < r2 { 1 } else { 0 });
+                self.store(r3 as usize, if r1 < r2 { 1 } else { 0 });
             }
             Instruction::Equals(r1, r2, r3) => {
-                self.store(r3, if r1 == r2 { 1 } else { 0 });
+                self.store(r3 as usize, if r1 == r2 { 1 } else { 0 });
             }
             Instruction::Exit => {
                 self.halted = true;
