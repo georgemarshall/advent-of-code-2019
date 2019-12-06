@@ -1,12 +1,21 @@
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 
-fn count_orbits(orbits: &HashMap<String, String>, planet: &str) -> u32 {
-    if let Some(p) = orbits.get(planet) {
-        1 + count_orbits(orbits, p)
+fn count_orbits(
+    memoizer: &mut HashMap<String, u32>,
+    orbits: &HashMap<String, String>,
+    planet: &str,
+) -> u32 {
+    if let Some(&m) = memoizer.get(planet) {
+        return m;
+    }
+    let v = if let Some(p) = orbits.get(planet) {
+        1 + count_orbits(memoizer, orbits, p)
     } else {
         0
-    }
+    };
+    memoizer.insert(planet.to_owned(), v);
+    v
 }
 
 fn shortest_transfer(planets: &HashMap<&str, HashSet<&str>>, start: &str, end: &str) -> u32 {
@@ -43,6 +52,7 @@ fn orbits(input: &str) -> HashMap<String, String> {
 
 #[aoc(day6, part1)]
 fn total_orbits(orbits: &HashMap<String, String>) -> u32 {
+    let mut memoizer: HashMap<String, u32> = HashMap::new();
     let planets: HashSet<&str> = HashSet::from_iter(
         orbits
             .keys()
@@ -51,7 +61,7 @@ fn total_orbits(orbits: &HashMap<String, String>) -> u32 {
     );
     planets
         .into_iter()
-        .map(|planet| count_orbits(orbits, planet))
+        .map(|planet| count_orbits(&mut memoizer, orbits, planet))
         .sum()
 }
 
