@@ -1,122 +1,60 @@
-struct Instruction<'a> {
-    machine: &'a mut IntcodeMachine,
-    opcode: usize,
-    mode: usize,
+enum Mode {
+    Position,
+    Immediate,
 }
 
-impl<'a> Instruction<'a> {
-    fn new(machine: &'a mut IntcodeMachine) -> Self {
-        let instruction = machine.next();
-        Instruction {
-            machine,
-            opcode: instruction % 100,
-            mode: instruction / 100,
-        }
-    }
-
-    fn execute(&mut self) {
-        match self.opcode {
-            1 => {
-                let (r1, r2, r3) = (self.next(), self.next(), self.next_ptr());
-                self.add(r1, r2, r3)
-            }
-            2 => {
-                let (r1, r2, r3) = (self.next(), self.next(), self.next_ptr());
-                self.multiply(r1, r2, r3)
-            }
-            3 => {
-                let r1 = self.next_ptr();
-                self.input(r1)
-            }
-            4 => {
-                let r1 = self.next();
-                self.output(r1)
-            }
-            5 => {
-                let (r1, r2) = (self.next(), self.next());
-                self.jump_if_true(r1, r2)
-            }
-            6 => {
-                let (r1, r2) = (self.next(), self.next());
-                self.jump_if_false(r1, r2)
-            }
-            7 => {
-                let (r1, r2, r3) = (self.next(), self.next(), self.next_ptr());
-                self.less_than(r1, r2, r3)
-            }
-            8 => {
-                let (r1, r2, r3) = (self.next(), self.next(), self.next_ptr());
-                self.equals(r1, r2, r3)
-            }
-            99 => self.exit(),
-            _ => unreachable!(),
-        }
-    }
-
-    fn next(&mut self) -> i32 {
-        let mode = self.mode % 10;
-        self.mode /= 10;
-
-        let v = self.next_ptr();
+impl From<usize> for Mode {
+    fn from(mode: usize) -> Self {
         match mode {
-            0 => self.machine.load(v),
-            1 => v as i32,
+            0 => Mode::Position,
+            1 => Mode::Immediate,
             _ => unreachable!(),
         }
     }
+}
 
-    fn next_ptr(&mut self) -> usize {
-        self.machine.next()
-    }
+enum Instruction {
+    Add(i32, i32, usize),
+    Multiply(i32, i32, usize),
+    Input(usize),
+    Output(i32),
+    JumpIfTrue(i32, i32),
+    JumpIfFalse(i32, i32),
+    LessThan(i32, i32, usize),
+    Equals(i32, i32, usize),
+    Exit,
+}
 
-    /// Opcode: 1
-    fn add(&mut self, r1: i32, r2: i32, r3: usize) {
-        self.machine.store(r3, r1 + r2);
-    }
+impl From<&mut IntcodeMachine> for Instruction {
+    fn from(machine: &mut IntcodeMachine) -> Self {
+        let instruction = machine.next();
 
-    /// Opcode: 2
-    fn multiply(&mut self, r1: i32, r2: i32, r3: usize) {
-        self.machine.store(r3, r1 * r2);
-    }
+        let opcode = instruction % 100;
 
-    /// Opcode: 3
-    fn input(&mut self, r1: usize) {
-        let v = self.machine.input.pop().expect("Input expected");
-        self.machine.store(r1, v);
-    }
+        let mut mode = instruction / 100;
+        let mut mode_next = || {
+            let ptr = machine.next();
+            let m = mode % 10;
+            mode /= 10;
 
-    /// Opcode: 4
-    fn output(&mut self, r1: i32) {
-        self.machine.output.push(r1);
-    }
+            match m.into() {
+                Mode::Position => machine.load(ptr),
+                Mode::Immediate => ptr as i32,
+            }
+        };
 
-    /// Opcode: 5
-    fn jump_if_true(&mut self, r1: i32, r2: i32) {
-        if r1 != 0 {
-            self.machine.pc = r2 as usize;
+        match opcode {
+            1 => Instruction::Add(mode_next(), mode_next(), machine.next()),
+            2 => Instruction::Multiply(mode_next(), mode_next(), machine.next()),
+            3 => Instruction::Input(machine.next()),
+            4 => Instruction::Output(mode_next()),
+            5 => Instruction::JumpIfTrue(mode_next(), mode_next()),
+            6 => Instruction::JumpIfFalse(mode_next(), mode_next()),
+            7 => Instruction::LessThan(mode_next(), mode_next(), machine.next()),
+            8 => Instruction::Equals(mode_next(), mode_next(), machine.next()),
+            99 => Instruction::Exit,
+            _ => unreachable!(),
         }
-    }
-
-    /// Opcode: 6
-    fn jump_if_false(&mut self, r1: i32, r2: i32) {
-        if r1 == 0 {
-            self.machine.pc = r2 as usize;
-        }
-    }
-
-    /// Opcode: 7
-    fn less_than(&mut self, r1: i32, r2: i32, r3: usize) {
-        self.machine.store(r3, if r1 < r2 { 1 } else { 0 });
-    }
-
-    /// Opcode: 8
-    fn equals(&mut self, r1: i32, r2: i32, r3: usize) {
-        self.machine.store(r3, if r1 == r2 { 1 } else { 0 });
-    }
-
-    /// Opcode: 99
-    fn exit(&mut self) {
-        self.machine.halted = true;
     }
 }
 
@@ -147,9 +85,9 @@ impl IntcodeMachine {
     }
 
     fn next(&mut self) -> usize {
-        let v = self.load(self.pc);
+        let ptr = self.load(self.pc);
         self.pc += 1;
-        v as usize
+        ptr as usize
     }
 
     pub fn load(&self, address: usize) -> i32 {
@@ -161,13 +99,50 @@ impl IntcodeMachine {
     }
 
     fn tick(&mut self) {
-        Instruction::new(self).execute();
+        match self.into() {
+            Instruction::Add(r1, r2, r3) => {
+                self.store(r3, r1 + r2);
+            }
+            Instruction::Multiply(r1, r2, r3) => {
+                self.store(r3, r1 * r2);
+            }
+            Instruction::Input(r1) => {
+                let v = self.input.pop().expect("Input expected");
+                self.store(r1, v);
+            }
+            Instruction::Output(r1) => {
+                self.output.push(r1);
+            }
+            Instruction::JumpIfTrue(r1, r2) => {
+                if r1 != 0 {
+                    self.pc = r2 as usize;
+                }
+            }
+            Instruction::JumpIfFalse(r1, r2) => {
+                if r1 == 0 {
+                    self.pc = r2 as usize;
+                }
+            }
+            Instruction::LessThan(r1, r2, r3) => {
+                self.store(r3, if r1 < r2 { 1 } else { 0 });
+            }
+            Instruction::Equals(r1, r2, r3) => {
+                self.store(r3, if r1 == r2 { 1 } else { 0 });
+            }
+            Instruction::Exit => {
+                self.halted = true;
+            }
+        }
     }
 }
 
 #[aoc_generator(day5)]
 fn program(input: &str) -> Vec<i32> {
-    input.split(',').filter_map(|s| s.parse().ok()).collect()
+    input
+        .lines()
+        .map(|s| s.split(',').filter_map(|s| s.parse().ok()).collect())
+        .next()
+        .unwrap()
 }
 
 #[aoc(day5, part1)]
@@ -187,6 +162,12 @@ fn part2(program: &[i32]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse() {
+        let p = program("1,9,10,3,2,3,11,0,99,30,40,50\n");
+        assert_eq!(p, vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50]);
+    }
 
     #[test]
     fn test_basic() {
