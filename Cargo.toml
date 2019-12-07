@@ -10,5 +10,6 @@ edition = "2018"
 bench = false
 
 [dependencies]
-aoc-runner = "0.2.2"
-aoc-runner-derive = "0.2.2"
+aoc-runner = "0.2"
+aoc-runner-derive = "0.2"
+itertools = "0.8"
