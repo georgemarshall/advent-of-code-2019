@@ -1,15 +1,38 @@
+enum Instruction {
+    Add(i32, i32, i32),
+    Multiply(i32, i32, i32),
+    Exit,
+}
+
+impl From<&mut IntcodeMachine> for Instruction {
+    fn from(machine: &mut IntcodeMachine) -> Self {
+        let opcode = machine.next();
+        let mut load_next = || {
+            let v = machine.next();
+            machine.load(v as usize)
+        };
+
+        match opcode {
+            1 => Instruction::Add(load_next(), load_next(), machine.next()),
+            2 => Instruction::Multiply(load_next(), load_next(), machine.next()),
+            99 => Instruction::Exit,
+            _ => unreachable!(),
+        }
+    }
+}
+
 struct IntcodeMachine {
-    mem: Vec<u32>,
-    halted: bool,
     pc: usize,
+    mem: Vec<i32>,
+    halted: bool,
 }
 
 impl IntcodeMachine {
-    pub fn new(mem: Vec<u32>) -> Self {
+    pub fn new(mem: Vec<i32>) -> Self {
         IntcodeMachine {
+            pc: 0,
             mem,
             halted: false,
-            pc: 0,
         }
     }
 
@@ -20,60 +43,57 @@ impl IntcodeMachine {
         }
     }
 
-    pub fn load(&self, address: usize) -> usize {
-        self.mem[address] as usize
+    fn next(&mut self) -> i32 {
+        let v = self.load(self.pc);
+        self.pc += 1;
+        v
     }
 
-    pub fn store(&mut self, address: usize, v: u32) {
+    pub fn load(&self, address: usize) -> i32 {
+        self.mem[address]
+    }
+
+    pub fn store(&mut self, address: usize, v: i32) {
         self.mem[address] = v;
     }
 
-    fn add(&mut self, r1: usize, r2: usize, r3: usize) {
-        let v = self.load(r1) + self.load(r2);
-        self.store(r3, v as u32);
-        self.pc += 4;
-    }
-
-    fn multiply(&mut self, r1: usize, r2: usize, r3: usize) {
-        let v = self.load(r1) * self.load(r2);
-        self.store(r3, v as u32);
-        self.pc += 4;
-    }
-
-    fn exit(&mut self) {
-        self.halted = true;
-    }
-
     fn tick(&mut self) {
-        let pc = self.pc;
-
-        match self.load(pc) {
-            1 => self.add(self.load(pc + 1), self.load(pc + 2), self.load(pc + 3)),
-            2 => self.multiply(self.load(pc + 1), self.load(pc + 2), self.load(pc + 3)),
-            99 => self.exit(),
-            _ => unreachable!(),
+        match self.into() {
+            Instruction::Add(r1, r2, r3) => {
+                self.store(r3 as usize, r1 + r2);
+            }
+            Instruction::Multiply(r1, r2, r3) => {
+                self.store(r3 as usize, r1 * r2);
+            }
+            Instruction::Exit => {
+                self.halted = true;
+            }
         }
     }
 }
 
 #[aoc_generator(day2)]
-fn program(input: &str) -> Vec<u32> {
-    input.split(',').filter_map(|s| s.parse().ok()).collect()
+fn program(input: &str) -> Vec<i32> {
+    input
+        .lines()
+        .map(|s| s.split(',').filter_map(|s| s.parse().ok()).collect())
+        .next()
+        .unwrap()
 }
 
 #[aoc(day2, part1)]
-fn restored_program(program: &[u32]) -> u32 {
+fn restored_program(program: &[i32]) -> i32 {
     let (noun, verb) = (12, 2);
 
     let mut im = IntcodeMachine::new(program.to_owned());
     im.store(1, noun);
     im.store(2, verb);
     im.run();
-    im.load(0) as u32
+    im.load(0)
 }
 
 #[aoc(day2, part2)]
-fn fuzzed_program(program: &[u32]) -> u32 {
+fn fuzzed_program(program: &[i32]) -> i32 {
     #[allow(clippy::inconsistent_digit_grouping)]
     let target = 1969_07_20;
 
@@ -95,6 +115,12 @@ fn fuzzed_program(program: &[u32]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse() {
+        let p = program("1,9,10,3,2,3,11,0,99,30,40,50\n");
+        assert_eq!(p, vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50]);
+    }
 
     #[test]
     fn test_intcode_machine() {
