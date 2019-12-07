@@ -55,7 +55,11 @@ fn password_has_double(password: u32) -> bool {
 
 #[aoc_generator(day4)]
 fn password_range(input: &str) -> Range<u32> {
-    let mut parts = input.split('-').filter_map(|s| s.parse().ok());
+    let mut parts = input
+        .lines()
+        .map(|s| s.split('-').filter_map(|s| s.parse().ok()))
+        .next()
+        .unwrap();
     Range {
         start: parts.next().unwrap(),
         end: parts.next().unwrap(),
@@ -75,6 +79,18 @@ fn total_password_has_double(range: &Range<u32>) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse() {
+        let p = password_range("111111-999999\n");
+        assert_eq!(
+            p,
+            Range {
+                start: 111111,
+                end: 999999
+            }
+        );
+    }
 
     #[test]
     fn test_part1_valid() {
