@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::ops::Range;
 
 struct NumberDigits {
@@ -27,13 +28,13 @@ impl Iterator for NumberDigits {
 fn password_heuristic(password: u32) -> [u8; 10] {
     NumberDigits::new(password)
         // Check each digit is not greater than the last (reverse order)
-        .scan(None, |last, d| {
+        .scan(None, |last, digit| {
             if let Some(l) = last {
-                if d > *l {
+                if digit > *l {
                     return None;
                 }
             }
-            *last = Some(d);
+            *last = Some(digit);
             *last
         })
         // Count the occurrence of each digit
@@ -54,16 +55,13 @@ fn password_has_double(password: u32) -> bool {
 }
 
 #[aoc_generator(day4)]
-fn password_range(input: &str) -> Range<u32> {
-    let mut parts = input
+fn load_range(input: &str) -> Range<u32> {
+    let (start, end) = input
         .lines()
-        .map(|s| s.split('-').filter_map(|s| s.parse().ok()))
-        .next()
+        .filter_map(|s| s.split('-').filter_map(|s| s.parse().ok()).collect_tuple())
+        .exactly_one()
         .unwrap();
-    Range {
-        start: parts.next().unwrap(),
-        end: parts.next().unwrap(),
-    }
+    Range { start, end }
 }
 
 #[aoc(day4, part1)]
@@ -82,9 +80,9 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let p = password_range("111111-999999\n");
+        let range = load_range("111111-999999\n");
         assert_eq!(
-            p,
+            range,
             Range {
                 start: 111111,
                 end: 999999

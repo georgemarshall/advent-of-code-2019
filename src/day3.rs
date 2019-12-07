@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::collections::HashSet;
 use std::iter::FromIterator;
 use std::num::ParseIntError;
@@ -85,11 +86,12 @@ impl Wire {
 }
 
 #[aoc_generator(day3)]
-fn wires(input: &str) -> (Wire, Wire) {
-    let mut wire_iter = input
+fn load_wires(input: &str) -> (Wire, Wire) {
+    input
         .lines()
-        .map(|s| Wire::new(s.split(',').filter_map(|v| v.parse().ok()).collect()));
-    (wire_iter.next().unwrap(), wire_iter.next().unwrap())
+        .map(|s| Wire::new(s.split(',').filter_map(|v| v.parse().ok()).collect()))
+        .collect_tuple()
+        .unwrap()
 }
 
 #[aoc(day3, part1)]
@@ -131,7 +133,7 @@ mod tests {
     #[test]
     fn test_parse() {
         let (w1, w2) =
-            wires("R75,D30,R83,U83,L12,D49,R71,U7,L72\nU62,R66,U55,R34,D71,R55,D58,R83\n");
+            load_wires("R75,D30,R83,U83,L12,D49,R71,U7,L72\nU62,R66,U55,R34,D71,R55,D58,R83\n");
         assert_eq!(
             w1.vectors,
             vec![

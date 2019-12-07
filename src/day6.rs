@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 
@@ -39,13 +40,13 @@ fn shortest_transfer(planets: &HashMap<&str, HashSet<&str>>, start: &str, end: &
 }
 
 #[aoc_generator(day6)]
-fn orbits(input: &str) -> HashMap<String, String> {
+fn load_orbits(input: &str) -> HashMap<String, String> {
     input
         .lines()
         .map(|s| {
-            let mut parts = s.split(')');
-            let (parent, child) = (parts.next().unwrap(), parts.next().unwrap());
-            (child.to_owned(), parent.to_owned())
+            let (parent, child) = s.split(')').map(|s| s.to_owned()).collect_tuple().unwrap();
+            // Swap the pairs
+            (child, parent)
         })
         .collect()
 }
@@ -84,13 +85,14 @@ mod tests {
 
     #[test]
     fn test_total_orbits() {
-        let o = orbits("COM)B\nB)C\nC)D\nD)E\nE)F\nB)G\nG)H\nD)I\nE)J\nJ)K\nK)L\n");
+        let o = load_orbits("COM)B\nB)C\nC)D\nD)E\nE)F\nB)G\nG)H\nD)I\nE)J\nJ)K\nK)L\n");
         assert_eq!(total_orbits(&o), 42);
     }
 
     #[test]
     fn test_orbital_transfers() {
-        let o = orbits("COM)B\nB)C\nC)D\nD)E\nE)F\nB)G\nG)H\nD)I\nE)J\nJ)K\nK)L\nK)YOU\nI)SAN\n");
+        let o =
+            load_orbits("COM)B\nB)C\nC)D\nD)E\nE)F\nB)G\nG)H\nD)I\nE)J\nJ)K\nK)L\nK)YOU\nI)SAN\n");
         assert_eq!(orbital_transfers(&o), 4);
     }
 }

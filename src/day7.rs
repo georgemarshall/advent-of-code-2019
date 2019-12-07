@@ -21,14 +21,14 @@ fn amplification_circuit(program: &[i32], phases: Vec<i32>) -> Option<i32> {
 }
 
 fn feedback_loop(program: &[i32], phases: Vec<i32>) -> i32 {
-    let mut amplifiers: Vec<IntcodeMachine> = phases
+    let mut amplifiers = phases
         .into_iter()
         .map(|phase| {
             let mut amplifier = IntcodeMachine::new(program.to_owned());
             amplifier.input_push(phase);
             amplifier
         })
-        .collect();
+        .collect_vec();
 
     let mut last_output = 0;
     'feedback: loop {
@@ -53,7 +53,7 @@ fn load_program(input: &str) -> Vec<i32> {
 fn max_amplification_circuit(program: &[i32]) -> Option<i32> {
     (0..=4)
         .permutations(5)
-        .collect::<Vec<Vec<i32>>>()
+        .collect_vec()
         .into_par_iter()
         .filter_map(|phases| amplification_circuit(&program, phases))
         .max()
@@ -63,7 +63,7 @@ fn max_amplification_circuit(program: &[i32]) -> Option<i32> {
 fn max_feedback_loop(program: &[i32]) -> Option<i32> {
     (5..=9)
         .permutations(5)
-        .collect::<Vec<Vec<i32>>>()
+        .collect_vec()
         .into_par_iter()
         .map(|phases| feedback_loop(program, phases))
         .max()

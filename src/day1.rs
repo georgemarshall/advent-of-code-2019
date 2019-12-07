@@ -13,7 +13,7 @@ fn cumulative_fuel_for_mass(mass: i32) -> i32 {
 }
 
 #[aoc_generator(day1)]
-fn modules(input: &str) -> Vec<i32> {
+fn load_modules(input: &str) -> Vec<i32> {
     input.lines().filter_map(|s| s.parse().ok()).collect()
 }
 
