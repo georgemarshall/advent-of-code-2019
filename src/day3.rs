@@ -85,21 +85,19 @@ impl Wire {
 }
 
 #[aoc_generator(day3)]
-fn wires(input: &str) -> Vec<Wire> {
-    input
+fn wires(input: &str) -> (Wire, Wire) {
+    let mut wire_iter = input
         .lines()
-        .map(|s| Wire::new(s.split(',').filter_map(|v| v.parse().ok()).collect()))
-        .collect()
+        .map(|s| Wire::new(s.split(',').filter_map(|v| v.parse().ok()).collect()));
+    (wire_iter.next().unwrap(), wire_iter.next().unwrap())
 }
 
 #[aoc(day3, part1)]
-fn manhattan_distance(wires: &[Wire]) -> i32 {
-    let mut w = wires.iter();
-    let wire1 = w.next().unwrap().as_traced_points();
-    let wire2 = w.next().unwrap().as_traced_points();
+fn manhattan_distance(wires: &(Wire, Wire)) -> i32 {
+    let (wire1, wire2) = (wires.0.as_traced_points(), wires.1.as_traced_points());
 
-    let w1: HashSet<Point> = HashSet::from_iter(wire1.iter().cloned());
-    let w2: HashSet<Point> = HashSet::from_iter(wire2.iter().cloned());
+    let w1: HashSet<Point> = HashSet::from_iter(wire1.into_iter());
+    let w2: HashSet<Point> = HashSet::from_iter(wire2.into_iter());
     let intersections = w1.intersection(&w2);
     let origin = Point::default();
 
@@ -107,10 +105,8 @@ fn manhattan_distance(wires: &[Wire]) -> i32 {
 }
 
 #[aoc(day3, part2)]
-fn shortest_path(wires: &[Wire]) -> usize {
-    let mut w = wires.iter();
-    let wire1 = w.next().unwrap().as_traced_points();
-    let wire2 = w.next().unwrap().as_traced_points();
+fn shortest_path(wires: &(Wire, Wire)) -> usize {
+    let (wire1, wire2) = (wires.0.as_traced_points(), wires.1.as_traced_points());
 
     let w1: HashSet<Point> = HashSet::from_iter(wire1.iter().cloned());
     let w2: HashSet<Point> = HashSet::from_iter(wire2.iter().cloned());
@@ -133,8 +129,41 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_parse() {
+        let (w1, w2) =
+            wires("R75,D30,R83,U83,L12,D49,R71,U7,L72\nU62,R66,U55,R34,D71,R55,D58,R83\n");
+        assert_eq!(
+            w1.vectors,
+            vec![
+                Vector::Right(75),
+                Vector::Down(30),
+                Vector::Right(83),
+                Vector::Up(83),
+                Vector::Left(12),
+                Vector::Down(49),
+                Vector::Right(71),
+                Vector::Up(7),
+                Vector::Left(72),
+            ]
+        );
+        assert_eq!(
+            w2.vectors,
+            vec![
+                Vector::Up(62),
+                Vector::Right(66),
+                Vector::Up(55),
+                Vector::Right(34),
+                Vector::Down(71),
+                Vector::Right(55),
+                Vector::Down(58),
+                Vector::Right(83),
+            ]
+        );
+    }
+
+    #[test]
     fn test_manhattan_distance() {
-        let wires = vec![
+        let wires = (
             Wire::new(vec![
                 Vector::Right(75),
                 Vector::Down(30),
@@ -156,10 +185,10 @@ mod tests {
                 Vector::Down(58),
                 Vector::Right(83),
             ]),
-        ];
+        );
         assert_eq!(manhattan_distance(&wires), 159);
 
-        let wires = vec![
+        let wires = (
             Wire::new(vec![
                 Vector::Right(98),
                 Vector::Up(47),
@@ -185,13 +214,13 @@ mod tests {
                 Vector::Up(6),
                 Vector::Right(7),
             ]),
-        ];
+        );
         assert_eq!(manhattan_distance(&wires), 135);
     }
 
     #[test]
     fn test_part2() {
-        let wires = vec![
+        let wires = (
             Wire::new(vec![
                 Vector::Right(75),
                 Vector::Down(30),
@@ -213,10 +242,10 @@ mod tests {
                 Vector::Down(58),
                 Vector::Right(83),
             ]),
-        ];
+        );
         assert_eq!(shortest_path(&wires), 610);
 
-        let wires = vec![
+        let wires = (
             Wire::new(vec![
                 Vector::Right(98),
                 Vector::Up(47),
@@ -242,7 +271,7 @@ mod tests {
                 Vector::Up(6),
                 Vector::Right(7),
             ]),
-        ];
+        );
         assert_eq!(shortest_path(&wires), 410);
     }
 }
