@@ -11,6 +11,12 @@ pub fn parse_program(s: &str) -> Option<Vec<i64>> {
 enum Mode {
     Position,
     Immediate,
+    Relative,
+}
+
+enum Perm {
+    Read,
+    Write,
 }
 
 impl From<i64> for Mode {
@@ -18,6 +24,7 @@ impl From<i64> for Mode {
         match mode {
             0 => Mode::Position,
             1 => Mode::Immediate,
+            2 => Mode::Relative,
             _ => unreachable!(),
         }
     }
@@ -32,36 +39,43 @@ enum Instruction {
     JumpIfFalse(i64, i64),
     LessThan(i64, i64, i64),
     Equals(i64, i64, i64),
+    RelativeBase(i64),
     Exit,
 }
 
 impl From<&mut IntcodeMachine> for Instruction {
     fn from(machine: &mut IntcodeMachine) -> Self {
+        use Mode::{Immediate, Position, Relative};
+        use Perm::{Read, Write};
+
         let instruction = machine.next();
 
         let opcode = instruction % 100;
-
         let mut mode = instruction / 100;
-        let mut mode_next = || {
+
+        let mut next = |perm| {
             let v = machine.next();
             let m = mode % 10;
             mode /= 10;
 
-            match m.into() {
-                Mode::Position => machine.load(v as usize),
-                Mode::Immediate => v,
+            match (m.into(), perm) {
+                (Position, Read) => machine.load(v as usize),
+                (Relative, Read) => machine.load((machine.relative_base + v) as usize),
+                (Immediate, _) | (Position, Write) => v,
+                (Relative, Write) => machine.relative_base + v,
             }
         };
 
         match opcode {
-            1 => Instruction::Add(mode_next(), mode_next(), machine.next()),
-            2 => Instruction::Multiply(mode_next(), mode_next(), machine.next()),
-            3 => Instruction::Input(machine.next()),
-            4 => Instruction::Output(mode_next()),
-            5 => Instruction::JumpIfTrue(mode_next(), mode_next()),
-            6 => Instruction::JumpIfFalse(mode_next(), mode_next()),
-            7 => Instruction::LessThan(mode_next(), mode_next(), machine.next()),
-            8 => Instruction::Equals(mode_next(), mode_next(), machine.next()),
+            1 => Instruction::Add(next(Read), next(Read), next(Write)),
+            2 => Instruction::Multiply(next(Read), next(Read), next(Write)),
+            3 => Instruction::Input(next(Write)),
+            4 => Instruction::Output(next(Read)),
+            5 => Instruction::JumpIfTrue(next(Read), next(Read)),
+            6 => Instruction::JumpIfFalse(next(Read), next(Read)),
+            7 => Instruction::LessThan(next(Read), next(Read), next(Write)),
+            8 => Instruction::Equals(next(Read), next(Read), next(Write)),
+            9 => Instruction::RelativeBase(next(Read)),
             99 => Instruction::Exit,
             _ => unreachable!(),
         }
@@ -71,6 +85,7 @@ impl From<&mut IntcodeMachine> for Instruction {
 pub struct IntcodeMachine {
     pc: usize,
     mem: [i64; MEMORY],
+    relative_base: i64,
     input: LinkedList<i64>,
     output: LinkedList<i64>,
     halted: bool,
@@ -87,6 +102,7 @@ impl IntcodeMachine {
         IntcodeMachine {
             pc: 0,
             mem,
+            relative_base: 0,
             input: LinkedList::new(),
             output: LinkedList::new(),
             halted: false,
@@ -165,6 +181,9 @@ impl IntcodeMachine {
             Instruction::Equals(r1, r2, r3) => {
                 self.store(r3 as usize, if r1 == r2 { 1 } else { 0 });
             }
+            Instruction::RelativeBase(r1) => {
+                self.relative_base += r1;
+            }
             Instruction::Exit => {
                 self.halted = true;
             }
@@ -175,6 +194,7 @@ impl IntcodeMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use itertools::Itertools;
 
     #[test]
     fn test_program_from_str() {
@@ -382,5 +402,26 @@ mod tests {
             output.push_back(1001);
             output
         });
+    }
+
+    // Day 9 examples
+    #[test]
+    fn test_relative_mode() {
+        let program = vec![
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ];
+        let mut im = IntcodeMachine::new(&program);
+        im.run();
+        assert_eq!(im.output.into_iter().rev().collect_vec(), program);
+
+        let program = vec![1102, 34915192, 34915192, 7, 4, 7, 99, 0];
+        let mut im = IntcodeMachine::new(&program);
+        im.run();
+        assert_eq!(im.output_pop(), Some(1219070632396864));
+
+        let program = vec![104, 1125899906842624, 99];
+        let mut im = IntcodeMachine::new(&program);
+        im.run();
+        assert_eq!(im.output_pop(), Some(1125899906842624));
     }
 }
