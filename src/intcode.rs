@@ -1,6 +1,8 @@
 use std::collections::LinkedList;
 
-pub fn parse_program(s: &str) -> Option<Vec<i32>> {
+const MEMORY: usize = 2048;
+
+pub fn parse_program(s: &str) -> Option<Vec<i64>> {
     s.lines()
         .map(|s| s.split(',').filter_map(|s| s.parse().ok()).collect())
         .next()
@@ -11,8 +13,8 @@ enum Mode {
     Immediate,
 }
 
-impl From<i32> for Mode {
-    fn from(mode: i32) -> Self {
+impl From<i64> for Mode {
+    fn from(mode: i64) -> Self {
         match mode {
             0 => Mode::Position,
             1 => Mode::Immediate,
@@ -22,14 +24,14 @@ impl From<i32> for Mode {
 }
 
 enum Instruction {
-    Add(i32, i32, i32),
-    Multiply(i32, i32, i32),
-    Input(i32),
-    Output(i32),
-    JumpIfTrue(i32, i32),
-    JumpIfFalse(i32, i32),
-    LessThan(i32, i32, i32),
-    Equals(i32, i32, i32),
+    Add(i64, i64, i64),
+    Multiply(i64, i64, i64),
+    Input(i64),
+    Output(i64),
+    JumpIfTrue(i64, i64),
+    JumpIfFalse(i64, i64),
+    LessThan(i64, i64, i64),
+    Equals(i64, i64, i64),
     Exit,
 }
 
@@ -68,14 +70,20 @@ impl From<&mut IntcodeMachine> for Instruction {
 
 pub struct IntcodeMachine {
     pc: usize,
-    mem: Vec<i32>,
-    input: LinkedList<i32>,
-    output: LinkedList<i32>,
+    mem: [i64; MEMORY],
+    input: LinkedList<i64>,
+    output: LinkedList<i64>,
     halted: bool,
 }
 
 impl IntcodeMachine {
-    pub fn new(mem: Vec<i32>) -> Self {
+    pub fn new(program: &[i64]) -> Self {
+        // Initialize system memory
+        let mut mem = [0; MEMORY];
+
+        // Load the program into memory
+        mem[..program.len()].copy_from_slice(program);
+
         IntcodeMachine {
             pc: 0,
             mem,
@@ -85,23 +93,23 @@ impl IntcodeMachine {
         }
     }
 
-    pub fn input_push(&mut self, v: i32) {
+    pub fn input_push(&mut self, v: i64) {
         self.input.push_front(v)
     }
 
-    pub fn output_buf(&self) -> &LinkedList<i32> {
+    pub fn output_buf(&self) -> &LinkedList<i64> {
         &self.output
     }
 
-    pub fn output_pop(&mut self) -> Option<i32> {
+    pub fn output_pop(&mut self) -> Option<i64> {
         self.output.pop_back()
     }
 
-    pub fn load(&self, address: usize) -> i32 {
+    pub fn load(&self, address: usize) -> i64 {
         self.mem[address]
     }
 
-    pub fn store(&mut self, address: usize, v: i32) {
+    pub fn store(&mut self, address: usize, v: i64) {
         self.mem[address] = v;
     }
 
@@ -113,14 +121,14 @@ impl IntcodeMachine {
     }
 
     /// Run the intcode machine until it has output or becomes halted.
-    pub fn run_output(&mut self) -> Option<i32> {
+    pub fn run_output(&mut self) -> Option<i64> {
         while !self.halted && self.output.is_empty() {
             self.tick();
         }
         self.output.pop_back()
     }
 
-    fn next(&mut self) -> i32 {
+    fn next(&mut self) -> i64 {
         let v = self.load(self.pc);
         self.pc += 1;
         v
@@ -182,36 +190,39 @@ mod tests {
     #[test]
     fn test_intcode_machine() {
         let program = vec![1, 0, 0, 0, 99];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.run();
-        assert_eq!(im.mem, vec![2, 0, 0, 0, 99]);
+        assert_eq!(&im.mem[..program.len()], &[2, 0, 0, 0, 99]);
 
         let program = vec![2, 3, 0, 3, 99];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.run();
-        assert_eq!(im.mem, vec![2, 3, 0, 6, 99]);
+        assert_eq!(&im.mem[..program.len()], &[2, 3, 0, 6, 99]);
 
         let program = vec![2, 4, 4, 5, 99, 0];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.run();
-        assert_eq!(im.mem, vec![2, 4, 4, 5, 99, 9801]);
+        assert_eq!(&im.mem[..program.len()], &[2, 4, 4, 5, 99, 9801]);
 
         let program = vec![1, 1, 1, 4, 99, 5, 6, 0, 99];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.run();
-        assert_eq!(im.mem, vec![30, 1, 1, 4, 2, 5, 6, 0, 99]);
+        assert_eq!(&im.mem[..program.len()], &[30, 1, 1, 4, 2, 5, 6, 0, 99]);
 
         let program = vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.run();
-        assert_eq!(im.mem, vec![3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50]);
+        assert_eq!(
+            &im.mem[..program.len()],
+            &[3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50]
+        );
     }
 
     // Day 5 examples
     #[test]
     fn test_input_output() {
         let program = vec![3, 0, 4, 0, 99];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(1);
         im.run();
         assert_eq!(im.output, {
@@ -224,21 +235,21 @@ mod tests {
     #[test]
     fn test_immediate_mode() {
         let program = vec![1002, 4, 3, 4, 33];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.run();
-        assert_eq!(im.mem, vec![1002, 4, 3, 4, 99]);
+        assert_eq!(&im.mem[..program.len()], &[1002, 4, 3, 4, 99]);
 
         let program = vec![1101, 100, -1, 4, 0];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.run();
-        assert_eq!(im.mem, vec![1101, 100, -1, 4, 99]);
+        assert_eq!(&im.mem[..program.len()], &[1101, 100, -1, 4, 99]);
     }
 
     #[test]
     fn test_conditional() {
         let program = vec![3, 9, 8, 9, 10, 9, 4, 9, 99, -1, 8];
 
-        let mut im = IntcodeMachine::new(program.to_owned());
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(8);
         im.run();
         assert_eq!(im.output, {
@@ -247,7 +258,7 @@ mod tests {
             output
         });
 
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(1);
         im.run();
         assert_eq!(im.output, {
@@ -258,7 +269,7 @@ mod tests {
 
         let program = vec![3, 9, 7, 9, 10, 9, 4, 9, 99, -1, 8];
 
-        let mut im = IntcodeMachine::new(program.to_owned());
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(8);
         im.run();
         assert_eq!(im.output, {
@@ -267,7 +278,7 @@ mod tests {
             output
         });
 
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(1);
         im.run();
         assert_eq!(im.output, {
@@ -278,7 +289,7 @@ mod tests {
 
         let program = vec![3, 3, 1108, -1, 8, 3, 4, 3, 99];
 
-        let mut im = IntcodeMachine::new(program.to_owned());
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(8);
         im.run();
         assert_eq!(im.output, {
@@ -287,7 +298,7 @@ mod tests {
             output
         });
 
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(1);
         im.run();
         assert_eq!(im.output, {
@@ -298,7 +309,7 @@ mod tests {
 
         let program = vec![3, 3, 1107, -1, 8, 3, 4, 3, 99];
 
-        let mut im = IntcodeMachine::new(program.to_owned());
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(8);
         im.run();
         assert_eq!(im.output, {
@@ -307,7 +318,7 @@ mod tests {
             output
         });
 
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(1);
         im.run();
         assert_eq!(im.output, {
@@ -320,7 +331,7 @@ mod tests {
     #[test]
     fn test_conditional_jump() {
         let program = vec![3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(1);
         im.run();
         assert_eq!(im.output, {
@@ -330,7 +341,7 @@ mod tests {
         });
 
         let program = vec![3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1];
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(1);
         im.run();
         assert_eq!(im.output, {
@@ -345,7 +356,7 @@ mod tests {
             20, 1105, 1, 46, 98, 99,
         ];
 
-        let mut im = IntcodeMachine::new(program.to_owned());
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(1);
         im.run();
         assert_eq!(im.output, {
@@ -354,7 +365,7 @@ mod tests {
             output
         });
 
-        let mut im = IntcodeMachine::new(program.to_owned());
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(8);
         im.run();
         assert_eq!(im.output, {
@@ -363,7 +374,7 @@ mod tests {
             output
         });
 
-        let mut im = IntcodeMachine::new(program);
+        let mut im = IntcodeMachine::new(&program);
         im.input_push(50);
         im.run();
         assert_eq!(im.output, {

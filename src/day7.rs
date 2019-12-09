@@ -2,11 +2,11 @@ use crate::intcode::{parse_program, IntcodeMachine};
 use itertools::Itertools;
 use rayon::prelude::*;
 
-fn amplification_circuit(program: &[i32], phases: Vec<i32>) -> Option<i32> {
+fn amplification_circuit(program: &[i64], phases: Vec<i64>) -> Option<i64> {
     phases
         .into_iter()
         .map(|phase| {
-            let mut amplifier = IntcodeMachine::new(program.to_owned());
+            let mut amplifier = IntcodeMachine::new(program);
             amplifier.input_push(phase);
             amplifier
         })
@@ -20,11 +20,11 @@ fn amplification_circuit(program: &[i32], phases: Vec<i32>) -> Option<i32> {
         .last()
 }
 
-fn feedback_loop(program: &[i32], phases: Vec<i32>) -> i32 {
+fn feedback_loop(program: &[i64], phases: Vec<i64>) -> i64 {
     let mut amplifiers = phases
         .into_iter()
         .map(|phase| {
-            let mut amplifier = IntcodeMachine::new(program.to_owned());
+            let mut amplifier = IntcodeMachine::new(program);
             amplifier.input_push(phase);
             amplifier
         })
@@ -45,12 +45,12 @@ fn feedback_loop(program: &[i32], phases: Vec<i32>) -> i32 {
 }
 
 #[aoc_generator(day7)]
-fn load_program(input: &str) -> Vec<i32> {
+fn load_program(input: &str) -> Vec<i64> {
     parse_program(input).unwrap()
 }
 
 #[aoc(day7, part1)]
-fn max_amplification_circuit(program: &[i32]) -> Option<i32> {
+fn max_amplification_circuit(program: &[i64]) -> Option<i64> {
     (0..=4)
         .permutations(5)
         .collect_vec()
@@ -60,7 +60,7 @@ fn max_amplification_circuit(program: &[i32]) -> Option<i32> {
 }
 
 #[aoc(day7, part2)]
-fn max_feedback_loop(program: &[i32]) -> Option<i32> {
+fn max_feedback_loop(program: &[i64]) -> Option<i64> {
     (5..=9)
         .permutations(5)
         .collect_vec()
@@ -102,7 +102,7 @@ mod tests {
             3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28, -1,
             28, 1005, 28, 6, 99, 0, 0, 5,
         ];
-        let phases: Vec<i32> = vec![9, 8, 7, 6, 5];
+        let phases: Vec<i64> = vec![9, 8, 7, 6, 5];
         assert_eq!(feedback_loop(&program, phases), 139629729);
 
         let program = vec![
@@ -110,7 +110,7 @@ mod tests {
             -5, 54, 1105, 1, 12, 1, 53, 54, 53, 1008, 54, 0, 55, 1001, 55, 1, 55, 2, 53, 55, 53, 4,
             53, 1001, 56, -1, 56, 1005, 56, 6, 99, 0, 0, 0, 0, 10,
         ];
-        let phases: Vec<i32> = vec![9, 7, 8, 5, 6];
+        let phases: Vec<i64> = vec![9, 7, 8, 5, 6];
         assert_eq!(feedback_loop(&program, phases), 18216);
     }
 }
