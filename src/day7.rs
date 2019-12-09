@@ -1,6 +1,5 @@
 use crate::intcode::{parse_program, IntcodeMachine};
 use itertools::Itertools;
-use rayon::prelude::*;
 
 fn amplification_circuit(program: &[i64], phases: Vec<i64>) -> Option<i64> {
     phases
@@ -53,8 +52,6 @@ fn load_program(input: &str) -> Vec<i64> {
 fn max_amplification_circuit(program: &[i64]) -> Option<i64> {
     (0..=4)
         .permutations(5)
-        .collect_vec()
-        .into_par_iter()
         .filter_map(|phases| amplification_circuit(&program, phases))
         .max()
 }
@@ -63,8 +60,6 @@ fn max_amplification_circuit(program: &[i64]) -> Option<i64> {
 fn max_feedback_loop(program: &[i64]) -> Option<i64> {
     (5..=9)
         .permutations(5)
-        .collect_vec()
-        .into_par_iter()
         .map(|phases| feedback_loop(program, phases))
         .max()
 }
