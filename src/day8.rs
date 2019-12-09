@@ -1,5 +1,9 @@
-use ansi_term::Color::{Black, White};
+use ansi_term::Color;
 use itertools::Itertools;
+
+const IMG_W: usize = 25;
+const IMG_H: usize = 6;
+const PIXEL: &str = "█";
 
 fn image_layers(image: &[u8], width: usize, height: usize) -> Vec<Vec<u8>> {
     image.chunks(width * height).map(|c| c.to_owned()).collect()
@@ -20,10 +24,10 @@ fn load_image(input: &str) -> Vec<u8> {
 
 #[aoc(day8, part1)]
 fn image_checksum(image: &[u8]) -> Option<u32> {
-    image_layers(image, 25, 6)
+    image_layers(image, IMG_W, IMG_H)
         .into_iter()
         .map(|layer| {
-            layer.into_iter().fold([0; 3], |mut acc, pixel| {
+            layer.into_iter().fold([0; 10], |mut acc, pixel| {
                 acc[pixel as usize] += 1;
                 acc
             })
@@ -35,9 +39,9 @@ fn image_checksum(image: &[u8]) -> Option<u32> {
 #[aoc(day8, part2)]
 fn image_decode(image: &[u8]) -> String {
     let composite_image =
-        image_layers(image, 25, 6)
+        image_layers(image, IMG_W, IMG_H)
             .into_iter()
-            .fold([2; 25 * 6], |mut acc, layer| {
+            .fold([2; IMG_W * IMG_H], |mut acc, layer| {
                 for (i, pixel) in layer.into_iter().enumerate() {
                     if acc[i] == 2 {
                         acc[i] = pixel;
@@ -45,24 +49,27 @@ fn image_decode(image: &[u8]) -> String {
                 }
                 acc
             });
-    let rendered_output = composite_image
-        .into_iter()
-        .map(|pixel| match pixel {
-            0 => Black.paint("█").to_string(),
-            1 => White.paint("█").to_string(),
-            _ => unreachable!(),
-        })
-        .chunks(25)
-        .into_iter()
-        .map(|r| {
-            let mut line = String::from("\t");
-            line.extend(r.into_iter());
-            line
-        })
-        .join("\n");
 
     let mut output = String::from("\n\n");
-    output.push_str(&rendered_output);
+    let output_lines = composite_image
+        .iter()
+        .map(|pixel| {
+            match pixel {
+                0 => Color::Black,
+                1 => Color::White,
+                _ => unreachable!(),
+            }
+            .paint(PIXEL)
+            .to_string()
+        })
+        .chunks(IMG_W);
+
+    output.extend(output_lines.into_iter().map(|row| {
+        let mut line = String::from("\t");
+        line.extend(row);
+        line.push('\n');
+        line
+    }));
     output.push('\n');
     output
 }
