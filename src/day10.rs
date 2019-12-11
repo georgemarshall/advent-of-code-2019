@@ -1,17 +1,17 @@
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::fmt;
+use std::convert::TryInto;
 
-#[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 struct Point {
     x: i32,
     y: i32,
 }
 
 impl Point {
-    fn angle(self, other: Self) -> f32 {
-        let delta_y = self.y as f32 - other.y as f32;
-        let delta_x = other.x as f32 - self.x as f32;
+    fn angle(self, other: Self) -> f64 {
+        let delta_y: f64 = (self.y - other.y).into();
+        let delta_x: f64 = (other.x - self.x).into();
         let result = delta_x.atan2(delta_y).to_degrees();
         if result < 0.0 {
             result + 360.0
@@ -25,22 +25,32 @@ impl Point {
     }
 }
 
-impl fmt::Display for Point {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
-    }
+fn asteroid_with_max_los(asteroids: &[Point]) -> Option<(Point, usize)> {
+    asteroids
+        .iter()
+        .map(|&origin| {
+            let count = asteroids
+                .iter()
+                .map(|&asteroid| (origin.angle(asteroid) * 100_000.0) as i32)
+                .unique()
+                .count();
+            (origin, count)
+        })
+        .max_by(|&a, &b| a.1.cmp(&b.1))
 }
 
-fn asteroids_from_map(map: &[Vec<Position>]) -> Vec<Point> {
-    map.iter()
+#[aoc_generator(day10)]
+fn load_map(input: &str) -> Vec<Point> {
+    input
+        .lines()
         .enumerate()
-        .map(|(y, row)| {
-            row.iter()
+        .map(|(y, s)| {
+            s.chars()
                 .enumerate()
-                .filter_map(|(x, pos)| match *pos {
-                    Position::Asteroid => Some(Point {
-                        x: x as i32,
-                        y: y as i32,
+                .filter_map(|(x, c)| match c {
+                    '#' => Some(Point {
+                        x: x.try_into().unwrap(),
+                        y: y.try_into().unwrap(),
                     }),
                     _ => None,
                 })
@@ -50,58 +60,21 @@ fn asteroids_from_map(map: &[Vec<Position>]) -> Vec<Point> {
         .collect()
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum Position {
-    Empty,
-    Asteroid,
-}
-
-impl From<char> for Position {
-    fn from(c: char) -> Self {
-        match c {
-            '.' => Position::Empty,
-            '#' => Position::Asteroid,
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[aoc_generator(day10)]
-fn load_map(input: &str) -> Vec<Vec<Position>> {
-    input
-        .lines()
-        .map(|s| s.chars().map(Position::from).collect())
-        .collect()
-}
-
 #[aoc(day10, part1)]
-fn max_los(map: &[Vec<Position>]) -> Option<usize> {
-    let asteroids = asteroids_from_map(map);
-    asteroids
-        .iter()
-        .map(|origin| {
-            asteroids
-                .iter()
-                .skip_while(|&a| a == origin)
-                .map(|&a| (origin.angle(a) * 100_000.0) as i32)
-                .unique()
-                .count()
-        })
-        .max()
+fn max_los(asteroids: &[Point]) -> Option<usize> {
+    let (_, max) = asteroid_with_max_los(asteroids)?;
+    Some(max)
 }
 
 #[aoc(day10, part2)]
-fn two_hundredth_asteroid(map: &[Vec<Position>]) -> Option<i32> {
-    let origin = Point { x: 23, y: 20 };
+fn two_hundredth_asteroid(asteroids: &[Point]) -> Option<i32> {
+    let (origin, _) = asteroid_with_max_los(asteroids)?;
 
-    let mut radial_map = asteroids_from_map(map)
-        .into_iter()
-        .skip_while(|&a| a == origin)
-        .fold(HashMap::new(), |mut acc, asteroid| {
-            let ang = (origin.angle(asteroid) * 100_000.0) as i32;
-            acc.entry(ang).or_insert_with(Vec::new).push(asteroid);
-            acc
-        });
+    let mut radial_map = asteroids.iter().fold(HashMap::new(), |mut acc, &asteroid| {
+        let ang = (origin.angle(asteroid) * 100_000.0) as i32;
+        acc.entry(ang).or_insert_with(Vec::new).push(asteroid);
+        acc
+    });
 
     // Sort all asteroids in descending order by distance from origin
     radial_map.values_mut().for_each(|v| {
@@ -123,7 +96,6 @@ fn two_hundredth_asteroid(map: &[Vec<Position>]) -> Option<i32> {
 
 #[cfg(test)]
 mod tests {
-    use super::Position::{Asteroid as A, Empty as E};
     use super::*;
 
     #[test]
@@ -133,11 +105,16 @@ mod tests {
         assert_eq!(
             load_map(map),
             vec![
-                vec![E, A, E, E, A],
-                vec![E, E, E, E, E],
-                vec![A, A, A, A, A],
-                vec![E, E, E, E, A],
-                vec![E, E, E, A, A]
+                Point { x: 1, y: 0 },
+                Point { x: 4, y: 0 },
+                Point { x: 0, y: 2 },
+                Point { x: 1, y: 2 },
+                Point { x: 2, y: 2 },
+                Point { x: 3, y: 2 },
+                Point { x: 4, y: 2 },
+                Point { x: 4, y: 3 },
+                Point { x: 3, y: 4 },
+                Point { x: 4, y: 4 }
             ]
         );
     }
