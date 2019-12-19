@@ -2,6 +2,8 @@ use crate::intcode::{parse_program, IntcodeMachine};
 use ansi_term::Color as TermColor;
 use itertools::Itertools;
 use std::collections::HashMap;
+use std::sync::mpsc::channel;
+use std::thread;
 
 const PIXEL: &str = "█";
 
@@ -90,14 +92,21 @@ impl From<i64> for Rotation {
 }
 
 fn hull_painting_robot(program: &[i64], input: Color) -> HashMap<Point, Color> {
-    let mut im = IntcodeMachine::new(program);
-    im.input_push(input.into());
+    let (tx_input, rx_input) = channel();
+    let (tx_output, rx_output) = channel();
+
+    tx_input.send(input.into()).unwrap();
+
+    let mut robot = IntcodeMachine::new(program, Some(rx_input), Some(tx_output));
+    thread::spawn(move || {
+        robot.run();
+    });
 
     let mut painted = HashMap::new();
     let mut direction = Direction::Up;
     let mut origin = Point::default();
 
-    while let (Some(color), Some(rotation)) = (im.run_output(), im.run_output()) {
+    while let (Ok(color), Ok(rotation)) = (rx_output.recv(), rx_output.recv()) {
         // Set the painted color for the current position
         *painted.entry(origin.to_owned()).or_insert(Color::Black) = color.into();
 
@@ -107,7 +116,9 @@ fn hull_painting_robot(program: &[i64], input: Color) -> HashMap<Point, Color> {
 
         // Find the input color of the next position
         let panel = *painted.entry(origin.to_owned()).or_insert(Color::Black);
-        im.input_push(panel.into());
+        if tx_input.send(panel.into()).is_err() {
+            break;
+        }
     }
 
     painted

@@ -9,7 +9,7 @@ fn load_program(input: &str) -> Vec<i64> {
 fn restored_program_state(program: &[i64]) -> i64 {
     let (noun, verb) = (12, 2);
 
-    let mut im = IntcodeMachine::new(program);
+    let mut im = IntcodeMachine::new(program, None, None);
     im.store(1, noun);
     im.store(2, verb);
     im.run();
@@ -23,7 +23,7 @@ fn fuzz_program_state(program: &[i64]) -> i64 {
 
     for noun in 0..=99 {
         for verb in 0..=99 {
-            let mut im = IntcodeMachine::new(program);
+            let mut im = IntcodeMachine::new(program, None, None);
             im.store(1, noun);
             im.store(2, verb);
             im.run();

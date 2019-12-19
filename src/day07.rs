@@ -1,46 +1,110 @@
 use crate::intcode::{parse_program, IntcodeMachine};
 use itertools::Itertools;
+use std::sync::mpsc::{channel, Receiver, RecvError, SendError, Sender};
+use std::thread;
+use std::thread::JoinHandle;
 
-fn amplification_circuit(program: &[i64], phases: Vec<i64>) -> Option<i64> {
-    phases
-        .into_iter()
-        .map(|phase| {
-            let mut amplifier = IntcodeMachine::new(program);
-            amplifier.input_push(phase);
-            amplifier
-        })
-        .scan(0, |input, mut amplifier| {
-            amplifier.input_push(*input);
-            amplifier.run();
-
-            *input = amplifier.output_pop()?;
-            Some(*input)
-        })
-        .last()
+struct AmplificationCircuit {
+    amplifiers: Vec<JoinHandle<()>>,
+    inputs: Vec<Sender<i64>>,
+    output: Receiver<i64>,
 }
 
-fn feedback_loop(program: &[i64], phases: Vec<i64>) -> i64 {
-    let mut amplifiers = phases
-        .into_iter()
-        .map(|phase| {
-            let mut amplifier = IntcodeMachine::new(program);
-            amplifier.input_push(phase);
-            amplifier
-        })
-        .collect_vec();
+impl AmplificationCircuit {
+    fn new(program: &[i64], phases: Vec<i64>) -> Option<Self> {
+        let last_index = phases.len().checked_sub(1)?;
 
+        // Setup initial input channel for the chain
+        let (tx_input, rx_input) = channel();
+        let mut rx_output = None;
+
+        let (amplifiers, inputs): (Vec<_>, Vec<_>) = phases
+            .into_iter()
+            .enumerate()
+            .scan((Some(tx_input), Some(rx_input)), |(tx, rx), (i, v)| {
+                let builder = thread::Builder::new().name(format!("Amplifier {}", i));
+
+                // Setup an output for each instance
+                let (tx_link, rx_link) = channel();
+
+                let input = Some(rx.replace(rx_link)?);
+                let output = Some(tx_link.clone());
+                let mut im = IntcodeMachine::new(program, input, output);
+                let amplifier = builder
+                    .spawn(move || {
+                        im.run();
+                    })
+                    .unwrap();
+
+                // Seed amplifier initialization input
+                if let Some(sender) = tx {
+                    sender.send(v).ok()?;
+                }
+                // Grab the channel recv for the last amplifier
+                if i == last_index {
+                    rx_output = rx.take();
+                }
+
+                // Grab the channel send for the amplifier
+                tx.replace(tx_link).map(|sender| (amplifier, sender))
+            })
+            .unzip();
+
+        rx_output.map(|output| AmplificationCircuit {
+            amplifiers,
+            inputs,
+            output,
+        })
+    }
+
+    fn join_amplifies(self) -> Vec<thread::Result<()>> {
+        self.amplifiers
+            .into_iter()
+            .map(|amplifier| amplifier.join())
+            .collect()
+    }
+
+    fn send_input(&self, t: i64) -> Result<(), SendError<i64>> {
+        self.inputs
+            .first()
+            .ok_or_else(|| SendError(0))
+            .and_then(|sender| sender.send(t))
+    }
+
+    fn recv_output(&self) -> Result<i64, RecvError> {
+        self.output.recv()
+    }
+}
+
+fn amplification_circuit(program: &[i64], phases: Vec<i64>) -> Option<i64> {
+    let circuit = AmplificationCircuit::new(&program, phases)?;
+    circuit.send_input(0).ok()?;
+
+    let last_output = circuit.recv_output();
+    circuit.join_amplifies();
+    last_output.ok()
+}
+
+fn feedback_loop(program: &[i64], phases: Vec<i64>) -> Option<i64> {
+    let circuit = AmplificationCircuit::new(&program, phases)?;
     let mut last_output = 0;
-    'feedback: loop {
-        for amplifier in &mut amplifiers {
-            amplifier.input_push(last_output);
-            if let Some(output) = amplifier.run_output() {
-                last_output = output;
-            } else {
-                break 'feedback;
-            }
+
+    // Send initial input
+    circuit.send_input(last_output).ok()?;
+
+    // Loop until we stop receiving output
+    while let Ok(output) = circuit.recv_output() {
+        last_output = output;
+
+        // Send next input and break if the amplifies have shutdown
+        if circuit.send_input(last_output).is_err() {
+            break;
         }
     }
-    last_output
+
+    circuit.join_amplifies();
+
+    Some(last_output)
 }
 
 #[aoc_generator(day7)]
@@ -60,7 +124,7 @@ fn max_amplification_circuit(program: &[i64]) -> Option<i64> {
 fn max_feedback_loop(program: &[i64]) -> Option<i64> {
     (5..=9)
         .permutations(5)
-        .map(|phases| feedback_loop(program, phases))
+        .filter_map(|phases| feedback_loop(program, phases))
         .max()
 }
 
@@ -74,21 +138,21 @@ mod tests {
             3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0,
         ];
         let phases = vec![4, 3, 2, 1, 0];
-        assert_eq!(amplification_circuit(&program, phases).unwrap(), 43210);
+        assert_eq!(amplification_circuit(&program, phases), Some(43210));
 
         let program = vec![
             3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23,
             99, 0, 0,
         ];
         let phases = vec![0, 1, 2, 3, 4];
-        assert_eq!(amplification_circuit(&program, phases).unwrap(), 54321);
+        assert_eq!(amplification_circuit(&program, phases), Some(54321));
 
         let program = vec![
             3, 31, 3, 32, 1002, 32, 10, 32, 1001, 31, -2, 31, 1007, 31, 0, 33, 1002, 33, 7, 33, 1,
             33, 31, 31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0,
         ];
         let phases = vec![1, 0, 4, 3, 2];
-        assert_eq!(amplification_circuit(&program, phases).unwrap(), 65210);
+        assert_eq!(amplification_circuit(&program, phases), Some(65210));
     }
 
     #[test]
@@ -98,7 +162,7 @@ mod tests {
             28, 1005, 28, 6, 99, 0, 0, 5,
         ];
         let phases = vec![9, 8, 7, 6, 5];
-        assert_eq!(feedback_loop(&program, phases), 139629729);
+        assert_eq!(feedback_loop(&program, phases), Some(139629729));
 
         let program = vec![
             3, 52, 1001, 52, -5, 52, 3, 53, 1, 52, 56, 54, 1007, 54, 5, 55, 1005, 55, 26, 1001, 54,
@@ -106,6 +170,6 @@ mod tests {
             53, 1001, 56, -1, 56, 1005, 56, 6, 99, 0, 0, 0, 0, 10,
         ];
         let phases = vec![9, 7, 8, 5, 6];
-        assert_eq!(feedback_loop(&program, phases), 18216);
+        assert_eq!(feedback_loop(&program, phases), Some(18216));
     }
 }
